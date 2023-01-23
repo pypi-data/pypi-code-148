@@ -1,0 +1,2 @@
+class NotMathsExpression(Exception):
+    pass
