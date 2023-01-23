@@ -1,0 +1,5 @@
+__version__ = '0.2.5'
+__author__ = 'CMU'
+__author_email__ = 'awillia2@andrew.cmu.edu'
+__key_static_file_resnext__ = 'cmu.resnext-101-kinetics.pth'
+__digest_static_file_resnext__ = 'f82e4e519723fc7b2ff3761ea35600bdaf796fb7a4e62ee4c5591da7ffe48326'
