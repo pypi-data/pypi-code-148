@@ -1,0 +1,1 @@
+from .rapid_email import RapidEmailNotificationSMTP
