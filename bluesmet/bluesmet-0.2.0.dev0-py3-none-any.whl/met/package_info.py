@@ -1,0 +1,1 @@
+packages =  [{'name': 'scatter', 'version': 0}, {'name': 'nora3', 'version': 0}]
