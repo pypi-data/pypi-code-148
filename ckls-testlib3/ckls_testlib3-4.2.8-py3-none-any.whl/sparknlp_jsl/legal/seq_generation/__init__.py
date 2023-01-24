@@ -1,0 +1,1 @@
+from sparknlp_jsl.legal.seq_generation.qa_ner_generator import LegalNerQuestionGenerator
