@@ -1,0 +1,651 @@
+from abc import abstractmethod
+from matplotlib.pyplot import hist
+from pandas import lreshape
+from tqdm.auto import tqdm
+
+import numpy as np
+import matplotlib.pyplot as plt
+import tensorflow as tf
+import tensorflow_probability as tfp
+import scipy
+import wandb
+from fastcore.parallel import parallel
+from .color_matrices import *
+
+__all__ = ['ColorMatching',
+           'ColorMatchingInstance']
+
+def interpolate_Ti_tf(lambdas):
+    T_1 = T_lambda[:,1]
+    T_1 = tfp.math.interp_regular_1d_grid(lambdas, T_lambda[0,0], T_lambda[-1,0], 
+                                            T_1, fill_value='extrapolate')
+    T_2 = T_lambda[:,2]
+    T_2 = tfp.math.interp_regular_1d_grid(lambdas, T_lambda[0,0], T_lambda[-1,0], 
+                                            T_2, fill_value='extrapolate')
+    T_3 = T_lambda[:,3]
+    T_3 = tfp.math.interp_regular_1d_grid(lambdas, T_lambda[0,0], T_lambda[-1,0], 
+                                            T_3, fill_value='extrapolate')
+    return T_1, T_2, T_3
+
+def monochomatic_stimulus_2_tf(central_lambda, lambdas, width, max_radiance, background):
+    """
+    Generates a quasi-monochromatic spectrum. Gaussian centered in central lambda with desired width and peak on max_radiance over a background.
+    """
+    spectrum = max_radiance*tf.cast(tf.exp(-(lambdas-central_lambda)**2/width**2), tf.float32) + background_stimulus_tf(lambdas, background)
+    return spectrum
+
+def background_stimulus_tf(lambdas, background):
+    """
+    Generates a quasi-monochromatic spectrum. Gaussian centered in central lambda with desired width and peak on max_radiance over a background.
+    """
+    spectrum = tf.cast(tf.ones_like(lambdas, dtype=tf.float32)*background, tf.float32)
+    return spectrum
+
+def xyz2nrgb_tf(xyz, gamma, clip=False):
+    """
+    Changes from xyz to nrgb values (ready to be displayed in the screen). Expects and xyz color column vector or images.
+    This function is TensorFlow's gradient friendly.
+
+    Parameters
+    ----------
+    xyz: np.array
+        Three-element array corresponding to a color in XYZ space.
+    gamma: int or List
+        Value(s) to be used in the transformation to digital values.
+        The final result will be rgb = ng**(1/gamma).
+    clip: bool
+        Boolean determining if clipping will be used or not when the
+        resultant values exceed the range [0,1].
+    """
+    rgb = Mxyz2ng @ xyz
+
+    if clip and (tf.reduce_min(rgb) < 0 or tf.reduce_max(rgb) > 1):
+        rgb = tf.clip_by_value(rgb, 0, 1)
+
+    if type(gamma) == list:
+        rgb = tf.pow(rgb, 1/gamma[:,None])
+    elif type(gamma) == float:
+        rgb = rgb**(1/gamma)
+    else:
+        raise TypeError('Gamma should be either a single value (float) or a list with 3.')
+    
+    return rgb
+
+class ColorMatchingInstance():
+    """
+    A color matching experiment instance, where instance means
+    only a single wavelength. A full color matching experiment
+    is compromised of a full run over a collection of wavelengths.
+    """
+    def __init__(self,
+                 wavelength,
+                 central_wavelengths,
+                 lambdas,
+                 max_radiance,
+                 background_radiance,
+                 img_size,
+                 space_transform_fn,
+                 width_lambda=10,
+                 width_central_lambdas=5,
+                 initial_weights=[0.001, 0.001, 0.001, 0.001],
+                 norm_grads=False):
+        self.wavelength = wavelength
+        self.central_wavelengths = central_wavelengths
+        self.lambdas = lambdas
+        self.max_radiance = max_radiance
+        self.background_radiance = background_radiance
+        self.width_lambda = width_lambda
+        self.width_central_lambdas = width_central_lambdas
+        self.img_size = img_size
+        self.space_transform_fn = space_transform_fn
+        self.norm_grads = norm_grads
+        self.weights = tf.Variable(initial_weights,
+                                   trainable=True,
+                                   dtype=tf.float32)
+        self._Ts = None
+        self.loss = None
+        self.optimizer = None
+        self._history = None
+
+    @property
+    def Ts(self):
+        if self._Ts is None:
+            self._Ts = interpolate_Ti_tf(self.lambdas)
+        return self._Ts
+
+    def compile(self, loss, optimizer):
+        self.loss = loss
+        self.optimizer = optimizer
+
+    def generate_images(self):
+        spectrum_lambda = monochomatic_stimulus_2_tf(self.wavelength, self.lambdas, width=self.width_lambda, max_radiance=0.75*2*self.max_radiance, background=5*self.background_radiance)
+        Y_l = km*tf.reduce_sum(self.Ts[1]*spectrum_lambda)
+        spectrum_white = tf.cast(tf.ones_like(self.lambdas, dtype=tf.float32)*self.background_radiance*10, tf.float32)
+        Y_w = km*tf.reduce_sum(self.Ts[1]*spectrum_white)
+        spectrum_white = spectrum_white*Y_l/Y_w
+
+        for i in range(len(self.central_wavelengths)):
+            spectrum = monochomatic_stimulus_2_tf(self.central_wavelengths[i], self.lambdas, width=self.width_central_lambdas, max_radiance=0.75*self.max_radiance*tf.abs(self.weights[i]), background=self.background_radiance)
+            if self.weights[i] >= 0:
+                spectrum_lambda = spectrum_lambda + spectrum
+            else:
+                spectrum_white = spectrum_white + spectrum
+
+        t1_l = km*tf.reduce_sum(self.Ts[0]*spectrum_lambda)
+        t2_l = km*tf.reduce_sum(self.Ts[1]*spectrum_lambda)
+        t3_l = km*tf.reduce_sum(self.Ts[2]*spectrum_lambda)
+        t1_w = km*tf.reduce_sum(self.Ts[0]*spectrum_white)
+        t2_w = km*tf.reduce_sum(self.Ts[1]*spectrum_white)
+        t3_w = km*tf.reduce_sum(self.Ts[2]*spectrum_white)
+
+        t_l = tf.convert_to_tensor([t1_l, t2_l, t3_l], dtype = tf.float32)[:,None]
+        t_w = tf.convert_to_tensor([t1_w, t2_w, t3_w], dtype = tf.float32)[:,None]
+
+        rgb_lambda = self.space_transform_fn(t_l)
+        rgb_white = self.space_transform_fn(t_w)
+
+        img_lambda = tf.ones((1,*self.img_size,3), dtype=tf.float32)*tf.cast(tf.transpose(rgb_lambda, perm=[1,0]), tf.float32)
+        img_white = tf.ones((1,*self.img_size,3), dtype=tf.float32)*tf.cast(tf.transpose(rgb_white, perm=[1,0]), tf.float32)
+
+        return img_lambda, img_white#, rgb_2_l, rgb_2_w
+
+    @property
+    def history(self):
+        if self._history is None:
+            print('The experiment has not been fitted yet.')
+        return self._history
+
+    def fit(self, model, epochs, verbose=True, use_tqdm=True, lr_callback=None, early_stopping=None):
+        if self._history is None:
+            self._history = {'Loss':[], 'GradsL2':[], 'Weights':[]}
+        pbar = tqdm(range(epochs)) if use_tqdm else range(epochs)
+        for epoch in pbar:
+            with tf.GradientTape() as tape:
+                img_l, img_w = self.generate_images()
+                imgs = tf.concat([img_l, img_w], axis=0)
+                response_l, response_w = model.predict(imgs)
+                response_l, response_w = response_l[None,:,:,:], response_w[None,:,:,:]
+                loss = self.loss(response_l, response_w)
+            
+            grads = tape.gradient(loss, self.weights)
+            self.optimizer.apply_gradients(zip([grads], [self.weights]))
+            self.history['Loss'].append(loss.numpy().item())
+            self.history['GradsL2'].append(tf.reduce_sum(grads**2).numpy().item())
+            self.history['Weights'].append(self.weights.numpy())
+
+            if lr_callback is not None and epoch >= 1:
+                lr_callback.check_improvement(self.history)
+                lr_callback.reduce_lr()
+
+            if early_stopping is not None and epoch >= 1:
+                early_stopping.check_improvement(self.history)
+                if early_stopping.stop_training():
+                    break
+
+            if verbose and not use_tqdm:
+                if epoch % verbose == 0:
+                    print(f'Epoch {epoch+1} -> Loss: {self.history["Loss"][-1]} | GradsL2: {self.history["GradsL2"][-1]}')
+        return self.history
+
+class ColorMatchingInstanceWandb():
+    """
+    A `ColorMatchingInstace` with `wandb` logging.
+    """
+    import wandb
+
+    def __init__(self,
+                 wavelength,
+                 central_wavelengths,
+                 lambdas,
+                 max_radiance,
+                 background_radiance,
+                 img_size,
+                 space_transform_fn,
+                 to_rgb=None, # Function to project the images to RGB to log them properly.
+                 width_lambda=10,
+                 width_central_lambdas=5,
+                 initial_weights=[0.001, 0.001, 0.001, 0.001],
+                 norm_grads=False):
+        self.wavelength = wavelength
+        self.central_wavelengths = central_wavelengths
+        self.lambdas = lambdas
+        self.max_radiance = max_radiance
+        self.background_radiance = background_radiance
+        self.width_lambda = width_lambda
+        self.width_central_lambdas = width_central_lambdas
+        self.img_size = img_size
+        self.space_transform_fn = space_transform_fn
+        self.to_rgb = to_rgb
+        self.norm_grads = norm_grads
+        self.weights = tf.Variable(initial_weights,
+                                   trainable=True,
+                                   dtype=tf.float32)
+        self._Ts = None
+        self.loss = None
+        self.optimizer = None
+        self._history = None
+
+    @property
+    def Ts(self):
+        if self._Ts is None:
+            self._Ts = interpolate_Ti_tf(self.lambdas)
+        return self._Ts
+
+    def compile(self, loss, optimizer):
+        self.loss = loss
+        self.optimizer = optimizer
+
+    def generate_images(self):
+        spectrum_lambda = monochomatic_stimulus_2_tf(self.wavelength, self.lambdas, width=self.width_lambda, max_radiance=0.75*2*self.max_radiance, background=5*self.background_radiance)
+        Y_l = km*tf.reduce_sum(self.Ts[1]*spectrum_lambda)
+        spectrum_white = tf.cast(tf.ones_like(self.lambdas, dtype=tf.float32)*self.background_radiance*10, tf.float32)
+        Y_w = km*tf.reduce_sum(self.Ts[1]*spectrum_white)
+        spectrum_white = spectrum_white*Y_l/Y_w
+
+        for i in range(len(self.central_wavelengths)):
+            spectrum = monochomatic_stimulus_2_tf(self.central_wavelengths[i], self.lambdas, width=self.width_central_lambdas, max_radiance=0.75*self.max_radiance*tf.abs(self.weights[i]), background=self.background_radiance)
+            if self.weights[i] >= 0:
+                spectrum_lambda = spectrum_lambda + spectrum
+            else:
+                spectrum_white = spectrum_white + spectrum
+
+        t1_l = km*tf.reduce_sum(self.Ts[0]*spectrum_lambda)
+        t2_l = km*tf.reduce_sum(self.Ts[1]*spectrum_lambda)
+        t3_l = km*tf.reduce_sum(self.Ts[2]*spectrum_lambda)
+        t1_w = km*tf.reduce_sum(self.Ts[0]*spectrum_white)
+        t2_w = km*tf.reduce_sum(self.Ts[1]*spectrum_white)
+        t3_w = km*tf.reduce_sum(self.Ts[2]*spectrum_white)
+
+        t_l = tf.convert_to_tensor([t1_l, t2_l, t3_l], dtype = tf.float32)[:,None]
+        t_w = tf.convert_to_tensor([t1_w, t2_w, t3_w], dtype = tf.float32)[:,None]
+
+        rgb_lambda = self.space_transform_fn(t_l)
+        rgb_white = self.space_transform_fn(t_w)
+
+        img_lambda = tf.ones((1,*self.img_size,3), dtype=tf.float32)*tf.cast(tf.transpose(rgb_lambda, perm=[1,0]), tf.float32)
+        img_white = tf.ones((1,*self.img_size,3), dtype=tf.float32)*tf.cast(tf.transpose(rgb_white, perm=[1,0]), tf.float32)
+
+        return img_lambda, img_white#, rgb_2_l, rgb_2_w
+
+    @property
+    def history(self):
+        if self._history is None:
+            print('The experiment has not been fitted yet.')
+        return self._history
+
+    def fit(self, model, epochs, verbose=True, use_tqdm=True, lr_callback=None, early_stopping=None):
+        if self._history is None:
+            self._history = {'Loss':[], 'GradsL2':[], 'Weights':[]}
+        pbar = tqdm(range(epochs)) if use_tqdm else range(epochs)
+        for epoch in pbar:
+            with tf.GradientTape() as tape:
+                img_l, img_w = self.generate_images()
+                imgs = tf.concat([img_l, img_w], axis=0)
+                response_l, response_w = model.predict(imgs)
+                response_l, response_w = response_l[None,:,:,:], response_w[None,:,:,:]
+                loss = self.loss(response_l, response_w)
+            
+            grads = tape.gradient(loss, self.weights)
+            self.optimizer.apply_gradients(zip([grads], [self.weights]))
+            self.history['Loss'].append(loss.numpy().item())
+            self.history['GradsL2'].append(tf.reduce_sum(grads**2).numpy().item())
+            self.history['Weights'].append(self.weights.numpy())
+
+            if lr_callback is not None and epoch >= 1:
+                lr_callback.check_improvement(self.history)
+                lr_callback.reduce_lr()
+
+            if early_stopping is not None and epoch >= 1:
+                early_stopping.check_improvement(self.history)
+                if early_stopping.stop_training():
+                    break
+
+            if verbose and not use_tqdm:
+                if epoch % verbose == 0:
+                    print(f'Epoch {epoch+1} -> Loss: {self.history["Loss"][-1]} | GradsL2: {self.history["GradsL2"][-1]}')
+            
+            ## WandB logging
+            wandb.log({k:v[-1] for k, v in self.history.items()})
+            for i, w in enumerate(self.history["Weights"][-1]):
+                wandb.log({f"Weight_{i}":w})
+            if epoch % verbose == 0:
+                img_l, img_w = img_l.numpy().squeeze(), img_w.numpy().squeeze()
+                if self.to_rgb is not None: img_l, img_w = self.to_rgb(img_l), self.to_rgb(img_w)
+                fig, axes = plt.subplots(1,2)
+                axes[0].imshow(img_l)
+                axes[0].set_title("Stimuli")
+                axes[1].imshow(img_w)
+                axes[1].set_title("White")
+                wandb.log({"Images":wandb.Image(fig)})
+        return self.history
+
+class ReduceLROnPlateau():
+    def __init__(self,
+                 factor,
+                 patience,
+                 cooldown,
+                 min_lr,
+                 delta,
+                 optimizer,
+                 verbose=False):
+        self.factor = factor
+        self.patience = patience
+        self.cooldown = cooldown
+        self.min_lr = min_lr
+        self.delta = delta
+        self.optimizer = optimizer
+        self.verbose = verbose
+        self.steps_no_improve = 0
+        self.steps_cooldown = cooldown
+        self.min_loss = 99999999
+
+    def check_improvement(self, history):
+        # if np.abs((history['Loss'][-1]-self.min_loss)/self.min_loss) <= self.delta:
+        if history['Loss'][-1] >= self.min_loss:
+            self.steps_no_improve += 1
+        else:
+            self.min_loss = history['Loss'][-1]
+            self.steps_no_improve = 0
+    
+    def reduce_lr(self):
+        lr = float(tf.keras.backend.get_value(self.optimizer.learning_rate))
+        if lr > self.min_lr:
+            if self.steps_no_improve == self.patience:
+                if self.steps_cooldown < self.cooldown:
+                    self.steps_cooldown += 1
+                else:    
+                    new_lr = lr*self.factor
+                    tf.keras.backend.set_value(self.optimizer.lr, new_lr)
+                    self.steps_cooldown = 0
+                    if self.verbose:
+                        print(f'Learning Rate changed: {lr} -> {new_lr}')
+    def reset(self):
+        self.steps_no_improve = 0
+        self.steps_cooldown = self.cooldown
+        self.min_loss = 99999999
+
+class EarlyStopping():
+    def __init__(self,
+                 patience,
+                 delta,
+                 verbose=False):
+        self.patience = patience
+        self.delta = delta
+        self.verbose = verbose
+        self.steps_no_improve = 0
+        self.min_loss = 99999999
+
+    def check_improvement(self, history):
+        # if np.abs((history['Loss'][-1]-self.min_loss)/self.min_loss) <= self.delta:
+        if history['Loss'][-1] >= self.min_loss:
+            self.steps_no_improve += 1
+        else:
+            self.min_loss = history['Loss'][-1]
+            self.steps_no_improve = 0
+    
+    def stop_training(self):
+        if self.steps_no_improve == self.patience:
+            if self.verbose:
+                print('Stopping training.')
+            return True
+        else:
+            return False
+
+    def reset(self):
+        self.steps_no_improve = 0
+        self.min_loss = 99999999
+
+class EarlyStoppingRelative():
+    def __init__(self,
+                 patience,
+                 delta,
+                 verbose=False):
+        self.patience = patience
+        self.delta = delta
+        self.verbose = verbose
+        self.steps_no_improve = 0
+        self.min_loss = 99999999
+
+    def check_improvement(self, history):
+        # if np.abs((history['Loss'][-1]-self.min_loss)/self.min_loss) <= self.delta:
+        prev_loss = history['Loss'][-2*self.patience//3:-1]
+        if not prev_loss: 
+            prev_loss = self.min_loss
+        else:
+            prev_loss = np.min(prev_loss)
+
+        if history['Loss'][-1] >= prev_loss:
+            self.steps_no_improve += 1
+        else:
+            self.min_loss = history['Loss'][-1]
+            self.steps_no_improve = 0
+    
+    def stop_training(self):
+        if self.steps_no_improve == self.patience:
+            if self.verbose:
+                print('Stopping training.')
+            return True
+        else:
+            return False
+
+    def reset(self):
+        self.steps_no_improve = 0
+        self.min_loss = 99999999
+
+class ColorMatchingExperiment(ColorMatchingInstance):
+    """
+    Color matching experiment where different monochromatic lights
+    are given and the user has to minimize the distance with respect
+    to a white image.
+    This process is performed in an iterative way by optimizing the
+    ammount of each color that is put into the images from a set
+    of four available wavelenghts.
+    """
+    
+    def __init__(self,
+                 wavelengths=np.linspace(380, 770, 50),
+                 **kwargs):
+        # super(ColorMatchingExperiment, self).__init__(wavelength=None,
+        #                                               **kwargs)
+        self.wavelengths = wavelengths
+        self.instances = [ColorMatchingInstance(wavelength=wavelength, **kwargs) for wavelength in wavelengths]
+
+    def compile(self, loss, optimizer):
+        for instance in self.instances:
+            instance.loss = loss
+            instance.optimizer = optimizer
+
+    def fit(self, model, epochs, verbose=True, use_tqdm=True, lr_cb_fn=None, es_cb_fn=None):
+        histories = []
+        pbar = tqdm(self.instances) if use_tqdm else self.instances
+        for instance in pbar:
+            if verbose and not use_tqdm:
+                print(f'Wavelength: {instance.wavelength}')
+            if lr_cb_fn is not None:
+                lr_callback = lr_cb_fn()
+            else:
+                lr_callback = None
+
+            if es_cb_fn is not None:
+                early_stopping = es_cb_fn()
+            else:
+                early_stopping = None
+
+            history = instance.fit(model,
+                                   epochs=epochs,
+                                   verbose=verbose,
+                                   use_tqdm=use_tqdm,
+                                   lr_callback=lr_callback,
+                                   early_stopping=early_stopping)
+            histories.append(history)
+        return histories
+
+class ColorMatchingExperimentWandb(ColorMatchingInstance):
+    """
+    Color matching experiment where different monochromatic lights
+    are given and the user has to minimize the distance with respect
+    to a white image.
+    This process is performed in an iterative way by optimizing the
+    ammount of each color that is put into the images from a set
+    of four available wavelenghts.
+    """
+    
+    def __init__(self,
+                 project, # project name in WandB.
+                #  to_rgb=None,
+                 wavelengths=np.linspace(380, 770, 50),
+                 **kwargs):
+        # super(ColorMatchingExperiment, self).__init__(wavelength=None,
+        #                                               **kwargs)
+        self.project = project
+        # self.to_rgb = to_rgb
+        self.wavelengths = wavelengths
+        self.instances = [ColorMatchingInstanceWandb(wavelength=wavelength, **kwargs) for wavelength in wavelengths]
+
+    def compile(self, loss, optimizer):
+        for instance in self.instances:
+            instance.loss = loss
+            instance.optimizer = optimizer
+
+    def fit(self, model, epochs, verbose=True, use_tqdm=True, lr_cb_fn=None, es_cb_fn=None):
+        histories = []
+        pbar = tqdm(self.instances) if use_tqdm else self.instances
+        for instance in pbar:
+            wandb.init(project=self.project,
+                       name=f"Wavelength={instance.wavelength}")
+            if verbose and not use_tqdm:
+                print(f'Wavelength: {instance.wavelength}')
+            if lr_cb_fn is not None:
+                lr_callback = lr_cb_fn()
+            else:
+                lr_callback = None
+
+            if es_cb_fn is not None:
+                early_stopping = es_cb_fn()
+            else:
+                early_stopping = None
+
+            history = instance.fit(model,
+                                   epochs=epochs,
+                                   verbose=verbose,
+                                   use_tqdm=use_tqdm,
+                                   lr_callback=lr_callback,
+                                   early_stopping=early_stopping)
+            histories.append(history)
+            wandb.finish()
+        return histories
+
+
+class ColorMatchingExperimentWandbParallel(ColorMatchingInstance):
+    """
+    Color matching experiment where different monochromatic lights
+    are given and the user has to minimize the distance with respect
+    to a white image.
+    This process is performed in an iterative way by optimizing the
+    ammount of each color that is put into the images from a set
+    of four available wavelenghts.
+    """
+    
+    def __init__(self,
+                 project, # project name in WandB.
+                #  to_rgb=None,
+                 wavelengths=np.linspace(380, 770, 50),
+                 n_workers=2, # Number of cores to use for parallel computing. False means no parallel.
+                 **kwargs):
+        # super(ColorMatchingExperiment, self).__init__(wavelength=None,
+        #                                               **kwargs)
+        self.project = project
+        # self.to_rgb = to_rgb
+        self.wavelengths = wavelengths
+        self.n_workers = n_workers
+        self.instances = [ColorMatchingInstanceWandb(wavelength=wavelength, **kwargs) for wavelength in wavelengths]
+
+    def compile(self, loss, optimizer):
+        for instance in self.instances:
+            instance.loss = loss
+            instance.optimizer = optimizer
+
+    def _fit_instance(self, instance, model, epochs, verbose=True, use_tqdm=True, lr_cb_fn=None, es_cb_fn=None):
+        wandb.init(project=self.project,
+                    name=f"Wavelength={instance.wavelength}")
+        if verbose and not use_tqdm:
+            print(f'Wavelength: {instance.wavelength}')
+        if lr_cb_fn is not None:
+            lr_callback = lr_cb_fn()
+        else:
+            lr_callback = None
+
+        if es_cb_fn is not None:
+            early_stopping = es_cb_fn()
+        else:
+            early_stopping = None
+
+        history = instance.fit(model,
+                                epochs=epochs,
+                                verbose=verbose,
+                                use_tqdm=use_tqdm,
+                                lr_callback=lr_callback,
+                                early_stopping=early_stopping)
+        wandb.finish()
+        return history
+    
+    def fit(self, model, epochs, verbose=True, use_tqdm=True, lr_cb_fn=None, es_cb_fn=None):
+        histories = parallel(self._fit_instance, items=self.instances, model=model, epochs=epochs, verbose=verbose, use_tqdm=False, lr_cb_fn=lr_cb_fn, es_cb_fn=es_cb_fn, n_workers=self.n_workers, progress=use_tqdm)
+        return histories
+
+
+class LuminanceMatchingInstance(ColorMatchingInstance):
+    """
+    A luminance matching experiment instance, where instance means
+    only a single wavelength. A full luminance matching experiment
+    is compromised of a full run over a collection of wavelengths.
+    """
+
+    def __init__(self, 
+                 initial_weights, 
+                 wavelength_ref,
+                 **kwargs):
+        super(LuminanceMatchingInstance, self).__init__(**kwargs)
+        self.weights = tf.Variable(initial_weights,
+                                   trainable=True,
+                                   dtype=tf.float32,
+                                   constraint=tf.keras.constraints.NonNeg())
+        self.wavelength_ref = wavelength_ref
+
+    def generate_images(self):
+        spectrum_lambda = monochomatic_stimulus_2_tf(self.wavelength, self.lambdas, width=10, max_radiance=tf.abs(self.weights)*self.max_radiance, background=self.background_radiance)
+        spectrum_white = monochomatic_stimulus_2_tf(self.wavelength_ref, self.lambdas, width=10, max_radiance=self.max_radiance, background=self.background_radiance)
+
+        t1_l = km*tf.reduce_sum(self.Ts[0]*spectrum_lambda)
+        t2_l = km*tf.reduce_sum(self.Ts[1]*spectrum_lambda)
+        t3_l = km*tf.reduce_sum(self.Ts[2]*spectrum_lambda)
+        t1_w = km*tf.reduce_sum(self.Ts[0]*spectrum_white)
+        t2_w = km*tf.reduce_sum(self.Ts[1]*spectrum_white)
+        t3_w = km*tf.reduce_sum(self.Ts[2]*spectrum_white)
+
+        t_l = tf.convert_to_tensor([t1_l, t2_l, t3_l], dtype = tf.float32)[:,None]
+        t_w = tf.convert_to_tensor([t1_w, t2_w, t3_w], dtype = tf.float32)[:,None]
+
+        rgb_lambda = self.space_transform_fn(t_l)
+        rgb_white = self.space_transform_fn(t_w)
+
+        img_lambda = tf.ones((1,*self.img_size,3), dtype=tf.float32)*tf.cast(tf.transpose(rgb_lambda, perm=[1,0]), tf.float32)
+        img_white = tf.ones((1,*self.img_size,3), dtype=tf.float32)*tf.cast(tf.transpose(rgb_white, perm=[1,0]), tf.float32)
+
+        return img_lambda, img_white#, rgb_2_l, rgb_2_w
+
+class LuminanceMatchingExperiment(ColorMatchingExperiment):
+    """
+    Luminance matching experiment where different monochromatic lights
+    are given and the user has to minimize the distance with respect
+    to a white image.
+    This process is performed in an iterative way by optimizing the
+    ammount 'brightness' (luminance) into the images.
+    """
+    def __init__(self,
+                 wavelengths=np.linspace(380, 770, 50),
+                 wavelength_ref=550.0,
+                 **kwargs):
+        self.wavelengths = wavelengths
+        self.wavelength_ref=wavelength_ref
+        self.instances = [LuminanceMatchingInstance(wavelength=wavelength, wavelength_ref=wavelength_ref, **kwargs) for wavelength in wavelengths]
