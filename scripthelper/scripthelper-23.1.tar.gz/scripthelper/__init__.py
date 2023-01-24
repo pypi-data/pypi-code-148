@@ -1,0 +1,282 @@
+"""Framework for small scripts in Python 3
+
+You'll get the whole environment by importing just
+one file, and you can start working immediately.
+
+The output will be colored with support of multiple
+log levels, easy-to-add command line arguments, etc."""
+import argparse
+import inspect
+import logging
+import logging.handlers
+import pathlib
+import sys
+import warnings
+from typing import Optional, Tuple
+
+import coloredlogs
+import prettyprinter
+import tqdm
+import verboselogs
+from colorful import colorful  # type: ignore
+from traceback_with_variables.core import ColorSchemes, Format, iter_exc_lines
+
+_with_colors = None
+
+logger = logging.getLogger(__name__)
+
+__all__ = [
+    # Logging
+    "getLogger",
+    "CRITICAL",
+    "ERROR",
+    "WARNING",
+    "INFO",
+    "VERBOSE",
+    "DEBUG",
+    "SPAM",
+    # Warning
+    "warn",
+    # Argument parsing and bootstrap
+    "bootstrap",
+    "bootstrap_args",
+    "initialize",
+    "add_arguments",
+    "setup_file_logging",
+    "args",
+    "parser",
+    # Progressbar
+    "progressbar",
+    # For debugging
+    "pprint",
+    "pp",
+]
+
+CRITICAL = logging.CRITICAL
+ERROR = logging.ERROR
+WARNING = logging.WARNING
+INFO = logging.INFO
+VERBOSE = verboselogs.VERBOSE
+DEBUG = logging.DEBUG
+SPAM = verboselogs.SPAM
+warn = warnings.warn
+
+
+class CustomLogFormatter(coloredlogs.ColoredFormatter):
+    def __init__(self, format_str, *, colors):
+        self.colors = colors
+        super().__init__(
+            format_str,
+            level_styles=self._coloredlogs_styles(),
+            field_styles=self._coloredlogs_styles(),
+        )
+
+    def _coloredlogs_styles(self):
+        if self.colors:
+            return None  # Default value
+        else:
+            return {}  # Disable coloring
+
+    def formatException(self, stack_info):
+        if self.colors:
+            color_scheme = ColorSchemes.common
+        else:
+            color_scheme = ColorSchemes.none
+
+        return "\n".join(
+            iter_exc_lines(
+                e=stack_info[1],
+                num_skipped_frames=1,
+                fmt=Format(color_scheme=color_scheme),
+            )
+        )
+
+
+class ConsoleLogHandler(logging.StreamHandler):
+    def __init__(self):
+        logging.StreamHandler.__init__(self)
+        self.setFormatter(
+            CustomLogFormatter("%(levelname)s %(message)s", colors=_with_colors)
+        )
+
+    def emit(self, record):
+        msg = self.format(record)
+        tqdm.tqdm.write(msg)
+
+
+def _exception_handler(exc_type, exc_value, exc_traceback):
+    if issubclass(exc_type, KeyboardInterrupt):
+        sys.__excepthook__(exc_type, exc_value, exc_traceback)
+        return
+
+    message = f"Uncaught {exc_type.__name__}: {exc_value}"
+    logger.critical(message, exc_info=exc_value)
+
+
+def _setup_logger(console_log_level):
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        prettyprinter.install_extras()
+    verboselogs.install()
+    if sys.platform == "win32":
+        # In Windows the default black is black, which is invisible on the default terminal.
+        coloredlogs.DEFAULT_FIELD_STYLES["levelname"] = {"color": "blue"}
+
+    root_logger = logging.getLogger()
+    root_logger.setLevel(min(console_log_level, logging.DEBUG))
+
+    console_log_handler = ConsoleLogHandler()
+    console_log_handler.setLevel(console_log_level)
+    root_logger.addHandler(console_log_handler)
+
+    sys.excepthook = _exception_handler
+    logging.captureWarnings(True)
+
+
+def _log_level_from_verbosity(console_verbosity):
+    levels = [
+        logging.ERROR,
+        logging.WARNING,
+        logging.INFO,
+        verboselogs.VERBOSE,
+        logging.DEBUG,
+        verboselogs.SPAM,
+    ]
+    default_level = logging.INFO
+
+    new_index = levels.index(default_level) + console_verbosity
+    new_index = max(0, min(len(levels) - 1, new_index))
+    log_level = levels[new_index]
+    return log_level
+
+
+########################################################################################v
+
+
+def getLogger(name: str = "__main__") -> verboselogs.VerboseLogger:
+    """Return a verbose logger for a module
+
+    It is an alias for verboselogs.VerboseLogger.
+    Can be used as the logging.getLogger() method.
+    Extends built-in logger with levels: verbose, spam
+    """
+    return verboselogs.VerboseLogger(name)
+
+
+args: argparse.Namespace  # Parsed arguments, will be set during bootstrap
+
+parser = argparse.ArgumentParser()
+parser.add_argument(
+    "-v",
+    "--verbose",
+    action="count",
+    help="Increase verbosity. Can be applied multiple times, like -vv",
+)
+parser.add_argument(
+    "-q",
+    "--quiet",
+    action="count",
+    help="Decrease verbosity. Can be applied multiple times, like -qq",
+)
+parser.add_argument(
+    "--colors",
+    action="store_true",
+    default=None,
+    help="Force set colored output",
+)
+parser.add_argument(
+    "--no-colors",
+    action="store_false",
+    dest="colors",
+    help="Force set non-colored output",
+)
+
+
+def add_argument(*args, **kw) -> None:
+    """See: ArgumentParser.add_argument()"""
+    parser.add_argument(*args, **kw)
+
+
+def setup_file_logging(*, level: str = "INFO", filename: Optional[str] = None) -> None:
+    """Setups logging to file
+
+    The default filename is the name of the main script.
+    It uses RotatingFileHandler."""
+    if filename is None:
+        caller_module = inspect.getmodule(inspect.stack()[1][0])
+        module_file: str = caller_module.__file__  # type:ignore
+        filename = pathlib.Path(module_file).with_suffix(".log").as_posix()
+
+    file_log_handler = logging.handlers.RotatingFileHandler(
+        filename, encoding="utf-8", maxBytes=10 * 1024 * 1024, backupCount=9
+    )
+    formatter = CustomLogFormatter(
+        "%(asctime)s %(levelname)s %(message)s", colors=False
+    )
+    file_log_handler.setFormatter(formatter)
+    file_log_handler.setLevel(level)
+    logging.getLogger().addHandler(file_log_handler)
+
+
+def progressbar(*args, disable=None, **kwargs):
+    """See tqdm.tqdm
+    
+    The default value for 'disable' is None, meaning
+        - enable progressbar on terminals
+        - disable progressbar on non-tty
+    (checking the type of stderr)"""
+    kwargs["disable"] = disable
+    return tqdm.tqdm(*args, **kwargs)
+
+
+def pprint(*args, **kwargs) -> None:
+    """PrettyPrint with or without colors"""
+    if _with_colors:
+        prettyprinter.cpprint(*args, **kwargs)
+    else:
+        prettyprinter.pprint(*args, **kwargs)
+
+
+pp = pprint
+
+
+def bootstrap_args() -> Tuple[verboselogs.VerboseLogger, argparse.Namespace]:
+    """Bootstraps the framework
+
+    returns (logger, args)
+        The logger for main scripts
+        And the parsed argument"""
+    global args
+    global _with_colors
+
+    args = parser.parse_args()
+
+    if args.colors is None:
+        _with_colors = sys.stdout.isatty()
+    else:
+        _with_colors = args.colors
+        if args.colors:
+            # Hack for pretty printer on force colors
+            colorful.use_16_ansi_colors()
+
+    console_verbosity = (args.verbose or 0) - (args.quiet or 0)
+    console_log_level = _log_level_from_verbosity(console_verbosity)
+    _setup_logger(console_log_level)
+
+    logger.debug(f"Arguments: {args}")
+
+    return getLogger(), args
+
+
+def bootstrap() -> verboselogs.VerboseLogger:
+    """Bootstraps the framework
+
+    returns logger - the logger for the main script"""
+    return bootstrap_args()[0]
+
+
+def initialize() -> argparse.Namespace:
+    """Bootstraps the framework
+    
+    return args - the parsed arguments"""
+    return bootstrap_args()[1]
