@@ -1,0 +1,1 @@
+from sparknlp_jsl.finance.seq_generation.qa_ner_generator import FinanceNerQuestionGenerator
