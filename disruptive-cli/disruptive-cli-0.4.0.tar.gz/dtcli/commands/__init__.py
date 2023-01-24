@@ -1,0 +1,10 @@
+import dtcli.commands.device as device  # noqa
+import dtcli.commands.data_connector as data_connector  # noqa
+import dtcli.commands.project as project  # noqa
+import dtcli.commands.organization as organization  # noqa
+import dtcli.commands.service_account as service_account  # noqa
+import dtcli.commands.role as role  # noqa
+import dtcli.commands.event as event  # noqa
+import dtcli.commands.emulator as emulator  # noqa
+import dtcli.commands.config as config  # noqa
+import dtcli.commands.claim as claim  # noqa
