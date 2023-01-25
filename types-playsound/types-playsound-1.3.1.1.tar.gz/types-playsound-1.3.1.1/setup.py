@@ -1,0 +1,43 @@
+from setuptools import setup
+
+name = "types-playsound"
+description = "Typing stubs for playsound"
+long_description = '''
+## Typing stubs for playsound
+
+This is a PEP 561 type stub package for the `playsound` package. It
+can be used by type-checking tools like
+[mypy](https://github.com/python/mypy/),
+[pyright](https://github.com/microsoft/pyright),
+[pytype](https://github.com/google/pytype/),
+PyCharm, etc. to check code that uses
+`playsound`. The source for this package can be found at
+https://github.com/python/typeshed/tree/main/stubs/playsound. All fixes for
+types and metadata should be contributed there.
+
+See https://github.com/python/typeshed/blob/main/README.md for more details.
+This package was generated from typeshed commit `a9b4fa0a325f2806bde895d2cd374d42cd06e67e`.
+'''.lstrip()
+
+setup(name=name,
+      version="1.3.1.1",
+      description=description,
+      long_description=long_description,
+      long_description_content_type="text/markdown",
+      url="https://github.com/python/typeshed",
+      project_urls={
+          "GitHub": "https://github.com/python/typeshed",
+          "Changes": "https://github.com/typeshed-internal/stub_uploader/blob/main/data/changelogs/playsound.md",
+          "Issue tracker": "https://github.com/python/typeshed/issues",
+          "Chat": "https://gitter.im/python/typing",
+      },
+      install_requires=[],
+      packages=['playsound-stubs'],
+      package_data={'playsound-stubs': ['__init__.pyi', 'METADATA.toml']},
+      license="Apache-2.0 license",
+      classifiers=[
+          "License :: OSI Approved :: Apache Software License",
+          "Programming Language :: Python :: 3",
+          "Typing :: Stubs Only",
+      ]
+)
