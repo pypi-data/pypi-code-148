@@ -1,0 +1,1 @@
+from frappyflaskcontent.content_api import register_endpoints
