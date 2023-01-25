@@ -1,0 +1,2 @@
+class RedFlag(Exception):
+    pass
