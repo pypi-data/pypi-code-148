@@ -1,0 +1,2 @@
+class TheTeamCowboyAPIException(Exception):
+    pass
