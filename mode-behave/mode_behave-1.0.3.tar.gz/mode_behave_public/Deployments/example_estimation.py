@@ -1,0 +1,99 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Thu Jul 21 09:55:20 2022
+
+@author: j.reul
+"""
+
+#import necessary modules
+import time
+import numpy as np
+
+import mode_behave as mb
+
+#%% SIMPLE MODEL - 3 ATTRIBUTES
+
+#define model parameters
+param_fixed = []
+param_random = ['RELATIVER_KAUFPREIS', 'REICHWEITE_DURCH100', 'LADE_TANK_ZEIT']
+
+param_temp = {'constant': 
+                  {
+                   'fixed':[],
+                   'random':[]
+                   },
+              'variable':
+                  {
+                   'fixed': [],
+                   'random':[]
+                   }
+              }
+
+param_temp['variable']['fixed'] = param_fixed
+param_temp['variable']['random'] = param_random    
+    
+#Initialize model
+model = mb.Core(
+    param=param_temp, 
+    data_name='example_data', 
+    alt=4, 
+    equal_alt=1
+    )
+
+#%% ESTIMATION OF PARAMETERS.
+
+#estimate MXL model
+start = time.time()
+#estimate mixed logit model
+model.estimate_mixed_logit(
+    min_iter=10, 
+    max_iter=1000,
+    tol=0.01,
+    space_method = 'std_value',
+    scale_space = 2,
+    max_shares = 1000,
+    bits_64=True,
+    t_stats_out=False
+    )
+end = time.time()
+delta = int(end-start)
+print('Estimation of logit model took: ', str(delta), ' seconds.')
+
+#%%Evaluation of MNL- and MXL-model
+print("LL-Ratio of MNL-model:", model.loglike_MNL()[0])
+print("LL-Ratio of MXL-model:", model.loglike_MXL())
+
+#%%Post-processing
+# Visualization of MXL-results and indication of clustering-results. 
+# Play around with bw_adjust to adapt curve-smoothing.
+model.visualize_space(
+    k=2, 
+    scale_individual=True, 
+    cluster_method='kmeans', 
+    external_points=np.array([model.initial_point]),
+    bw_adjust=0.03,
+    names_choice_options={0: "ICEV", 1: "PHEV", 2: "BEV", 3: "FCEV"}
+    )
+#%%
+# Comment on forecasting: The forecasting is performed on training data 
+# for simplicity. Please adjust the data (self.data) for further/own 
+# forecasting practices by reloading a diverging subset of the base data.
+
+# Forecast of cluster centers on the base data
+model.forecast(method='LC', 
+            k=2,
+            cluster_method='kmeans',
+            names_choice_options={0: "ICEV", 1: "PHEV", 2: "BEV", 3: "FCEV"},
+            name_scenario='clustering'
+            )
+#%%
+# Forecast of MNL model with parameter variation.
+# In this example, the relative purchase price of vehicle technologies is 
+# adjusted: ICEV +10%, PHEV +10%, BEV -50%, FCEV -50%
+model.forecast(method='MNL', 
+            sense_scenarios={"Cheap_EV": {
+                "RELATIVER_KAUFPREIS": [[1.1], [1.1], [0.5], [0.5]]}
+                },
+            names_choice_options={0: "ICEV", 1: "PHEV", 2: "BEV", 3: "FCEV"},
+            name_scenario='sensitivity'
+            )
