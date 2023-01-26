@@ -1,0 +1,99 @@
+from hrthy_core.events.events.candidate_event import (
+    CandidateCreatedEvent, CandidateDeletedEvent, CandidateInvitedEvent, CandidateLoggedInEvent,
+    CandidateLoggedOutEvent,
+    CandidateLoginRefreshedEvent, CandidateUpdatedEvent,
+)
+from hrthy_core.events.events.company_event import (
+    CompanyCreatedEvent, CompanyDeletedEvent, CompanyRestoredEvent, CompanyUpdatedEvent,
+)
+from hrthy_core.events.events.license_event import (
+    LicenseConsumedEvent, LicensePoolCreatedEvent, LicensePoolDeletedEvent, LicensePoolUpdatedEvent,
+)
+from hrthy_core.events.events.notification_event import (
+    EmailNotificationToCandidateFailedEvent, EmailNotificationToCandidateSentEvent,
+    EmailNotificationToUserFailedEvent, EmailNotificationToUserSentEvent,
+)
+from hrthy_core.events.events.payment_event import PaymentConfirmedEvent
+from hrthy_core.events.events.pipeline_candidate_event import (
+    PipelineCandidateAssignedEvent,
+    PipelineCandidateFinishedEvent, PipelineCandidateStartedEvent, PipelineCandidateUnassignedEvent,
+)
+from hrthy_core.events.events.pipeline_event import (
+    PipelineCreatedEvent, PipelineDeletedEvent, PipelineUpdatedEvent,
+)
+from hrthy_core.events.events.pipeline_manager_event import PipelineManagerAssignedEvent, PipelineManagerUnassignedEvent
+from hrthy_core.events.events.pipeline_step_candidate_event import (
+    PipelineStepCandidateFinishedEvent,
+    PipelineStepCandidateStartedEvent,
+)
+from hrthy_core.events.events.pipeline_step_event import PipelineStepCreatedEvent, PipelineStepDeletedEvent
+from hrthy_core.events.events.role_event import RoleCreatedEvent, RoleDeletedEvent, RoleUpdatedEvent
+from hrthy_core.events.events.user_event import (
+    UserAcceptedInvitationEvent, UserCreatedEvent, UserDeletedEvent, UserForgotPasswordEvent, UserInvitedEvent,
+    UserInvitedResendEvent, UserLoggedInEvent,
+    UserLoggedOutEvent, UserLoginRefreshedEvent, UserRestoredEvent, UserUpdatedEvent,
+)
+
+event_mapping = {
+    # Company
+    'CompanyCreatedEvent': CompanyCreatedEvent,
+    'CompanyUpdatedEvent': CompanyUpdatedEvent,
+    'CompanyDeletedEvent': CompanyDeletedEvent,
+    'CompanyRestoredEvent': CompanyRestoredEvent,
+    # User
+    'UserCreatedEvent': UserCreatedEvent,
+    'UserUpdatedEvent': UserUpdatedEvent,
+    'UserDeletedEvent': UserDeletedEvent,
+    'UserInvitedEvent': UserInvitedEvent,
+    'UserInvitedResendEvent': UserInvitedResendEvent,
+    'UserRestoredEvent': UserRestoredEvent,
+    'UserAcceptedInvitationEvent': UserAcceptedInvitationEvent,
+    # Role
+    'RoleCreatedEvent': RoleCreatedEvent,
+    'RoleUpdatedEvent': RoleUpdatedEvent,
+    'RoleDeletedEvent': RoleDeletedEvent,
+    # User Auth
+    'UserLoggedInEvent': UserLoggedInEvent,
+    'UserLoggedOutEvent': UserLoggedOutEvent,
+    'UserLoginRefreshedEvent': UserLoginRefreshedEvent,
+    'UserForgotPasswordEvent': UserForgotPasswordEvent,
+    # Candidate
+    'CandidateCreatedEvent': CandidateCreatedEvent,
+    'CandidateUpdatedEvent': CandidateUpdatedEvent,
+    'CandidateInvitedEvent': CandidateInvitedEvent,
+    'CandidateDeletedEvent': CandidateDeletedEvent,
+    # Candidate Auth
+    'CandidateLoggedInEvent': CandidateLoggedInEvent,
+    'CandidateLoggedOutEvent': CandidateLoggedOutEvent,
+    'CandidateLoginRefreshedEvent': CandidateLoginRefreshedEvent,
+    # Pipeline
+    'PipelineCreatedEvent': PipelineCreatedEvent,
+    'PipelineUpdatedEvent': PipelineUpdatedEvent,
+    'PipelineDeletedEvent': PipelineDeletedEvent,
+    # Pipeline Candidate
+    'PipelineCandidateAssignedEvent': PipelineCandidateAssignedEvent,
+    'PipelineCandidateUnassignedEvent': PipelineCandidateUnassignedEvent,
+    'PipelineCandidateStartedEvent': PipelineCandidateStartedEvent,
+    'PipelineCandidateFinishedEvent': PipelineCandidateFinishedEvent,
+    # Pipeline Manager
+    'PipelineManagerAssignedEvent': PipelineManagerAssignedEvent,
+    'PipelineManagerUnassignedEvent': PipelineManagerUnassignedEvent,
+    # Pipeline Step
+    'PipelineStepCreatedEvent': PipelineStepCreatedEvent,
+    'PipelineStepDeletedEvent': PipelineStepDeletedEvent,
+    # Pipeline Step Candidate
+    'PipelineStepCandidateStartedEvent': PipelineStepCandidateStartedEvent,
+    'PipelineStepCandidateFinishedEvent': PipelineStepCandidateFinishedEvent,
+    # License
+    'LicensePoolCreatedEvent': LicensePoolCreatedEvent,
+    'LicensePoolUpdatedEvent': LicensePoolUpdatedEvent,
+    'LicensePoolDeletedEvent': LicensePoolDeletedEvent,
+    'LicenseConsumedEvent': LicenseConsumedEvent,
+    # Notification
+    'EmailNotificationToUserSentEvent': EmailNotificationToUserSentEvent,
+    'EmailNotificationToCandidateSentEvent': EmailNotificationToCandidateSentEvent,
+    'EmailNotificationToUserFailedEvent': EmailNotificationToUserFailedEvent,
+    'EmailNotificationToCandidateFailedEvent': EmailNotificationToCandidateFailedEvent,
+    # Payment
+    'PaymentConfirmedEvent': PaymentConfirmedEvent,
+}
