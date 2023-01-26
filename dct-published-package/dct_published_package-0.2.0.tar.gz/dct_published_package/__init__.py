@@ -1,0 +1,1 @@
+from dct_published_package.my_module import greetings
