@@ -1,0 +1,47 @@
+import unittest
+from pathlib import Path
+
+from phases.commands.create import Create
+from phases.commands.run import Run
+from tests.acceptance.test_create import TestCreate
+
+
+class TestCompleteRun(unittest.TestCase):
+    """create a project and run it
+    """
+    projectFolder = "tests/data-gen"
+    configFile = "tests/data/min.yaml"
+
+    pass
+
+    # @classmethod
+    # def setUpClass(cls):
+    #     testrun = Run({})
+    #     path = Path(testrun.projectFolder)
+    #     if path.exists():
+    #         return
+
+    #     path = Path(testrun.projectFolder)
+    #     createCmd = Create(
+    #         {
+    #             "-p": testrun.configFile,
+    #             "-o": testrun.projectFolder,
+    #             "-f": True,
+    #         }
+    #     )
+    #     createCmd.run()
+    #     assert path.exists() is True
+
+    #     TestCreate().testCreateProjectSimple()
+
+    # def test_runProjectSimple(self):
+
+    #     runCmd = Run(
+    #         {
+    #             "-p": self.configFile,
+    #             "-o": self.projectFolder,
+    #             "-v": False,
+    #             "phaseName": None,
+    #         }
+    #     )
+    #     runCmd.run()
