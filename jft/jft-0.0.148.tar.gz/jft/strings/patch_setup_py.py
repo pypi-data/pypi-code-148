@@ -1,0 +1,21 @@
+from jft.strings.contain.version import f as k
+from jft.pip.version.to_str import f as make_v_str
+from jft.pf import f as pf
+
+def _k(x): return 'jft/pip/version' not in x
+
+f = lambda v, _L: [
+  (f"  version='{make_v_str(v)}'," if k(_l) and _k(_l) else _l) for _l in _L
+]
+
+v = {'major': 4, 'minor': 5, 'patch': 6}
+
+def t():
+  for (y, z) in [
+    ([], f({}, [])),
+    ([], f(v, [])),
+    (["  version='4.5.6',", '.'], f(v, ["  version='x.x.x',", '.'])),
+    (['.', "  version='4.5.6',"], f(v, ['.', "  version='x.x.x',"])),
+  ]:
+    if y != z: return pf([f'y: {y}', f'z: {z}'])
+  return True
