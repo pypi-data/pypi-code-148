@@ -1,0 +1,34 @@
+# -*- coding: utf-8 -*-
+from setuptools import setup
+
+package_dir = \
+{'': 'src'}
+
+packages = \
+['sanityze']
+
+package_data = \
+{'': ['*']}
+
+install_requires = \
+['pandas>=1.5.2,<2.0.0']
+
+setup_kwargs = {
+    'name': 'sanityze',
+    'version': '0.1.1',
+    'description': 'Python package to help datascientists remove or redact Personal Identifiable Information (PII) ',
+    'long_description': '[![ci-cd](https://github.com/UBC-MDS/sanityze/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/UBC-MDS/sanityze/actions/workflows/ci-cd.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![Documentation Status](https://readthedocs.org/projects/sanityze/badge/?version=latest)](https://sanityze.readthedocs.io/en/latest/?badge=latest)\n# sanityze\n\n![](logo.png)\n\nData scientists often need to remove or redact Personal Identifiable Information (PII) from their data. This package provides utilities to spot and redact PII from Pandas data frames. \n\nPII can be used to uniquely identify a person. This includes names, addresses, credit card numbers, phone numbers, email addresses, and social security numbers, and therefore regulatory bodies such as the European Union\'s General Data Protection Regulation (GDPR) and the California Consumer Privacy Act (CCPA) require that PII be removed or redacted from data sets before they are shared an further processed.\n\n\n## Contributors and Maintainers\n- [Tony Zoght](https://github.com/tzoght)\n- [Caesar Wong](https://github.com/caesarw0)\n- [Jonah Hamilton](https://github.com/xXJohamXx)\n\n\n## Why `sanityze` ? \nBecause it\'s a fun name and it\'s a play on the word "sanitize" which is what we are doing to the data\n\n## Similar packages in Python\nThe closet Python package in functionality to sanityze is  [scrubadub](https://scrubadub.readthedocs.io/en/stable/) which is a package for finding and removing PII from text. The package is not designed to work with Pandas data frames, or other data structures, and we believe that our package will be more useful to data scientists, as we add more spotters (mechanisms for finding PII), support for more data structures, and provide mechanisms for users to define their own spotters.\n\n\n## Quick Start\n\nTo get started with `sanityze`, install it using `pip`:\n\n```bash\n$ pip install sanityze\n```\n\nAnd visit the [documentation](https://ubc-mds.github.io/sanityze/) for more information and examples.\n\n## Features and Usage\nConceptually, `sanityze` is a package that provides a way to remove PII from Pandas data frames. The package provides a number of default spotters, which can be used to identify PII in the data and redact them. \n\nThe main entry point to the package is the `Cleanser` class. The `Cleanser` class is used to add `Spotter`s to the cleanser, which will be used to identify PII in the data. The cleanser can then be used to cleanse the data, and redact the PII from the given data frame (all future data structures that will be suppportd by the package, in the future).\n\n\nThe package comes with a number of default spotters, as subclassess of `Spotter`:\n1. `CreditCardSpotter` - identifies credit card numbers\n2. `EmailSpotter` - identifies email addresses\n\nSpotters can be added to it using the `add_spotter()` method. The cleanser can then be used to cleanse data using the `cleanse()` method which takes a Pandas data frame and returns a Pandas data frame with PII redacted.\n\nThe redaction options provided by `sanityze`` are:\n1. Redact using a fixed string - The string in this case is the ID of the spotter. For example, if the spotter is an instance of `CreditCardSpotter`, the string will be `{{CREDITCARD}}`, or `{{EMAILADDRS}}` for an instance of `EmailSpotter`.\n2. Redact using a hash of the input - The hash is computed using the `hashlib` package, and the hash function is `md5`. For example, if the spotter is an instance of `CreditCardSpotter`, the string will be `{{6a8b8c6c8c62bc939a11f36089ac75dd}}`, if the input is contains a PII `1234-5678-9012-3456`.\n\n\n## Classes and Functions\n1. `Cleanser`: the main class of the package. It is used to add spotters to it, and then cleanse data using the spotters.\n   1. `add_spotter()`: adds a spotter to the cleanser\n   2. `remove_spotter()`: removes a spotter from the cleanser\n   3. `clean()`: cleanses the data in the given data frame, and returns a new data frame with PII redacted\n2. `EmailSpotter`: a spotter that identifies email addresses\n   1. `getUID()`: returns the unique ID of the spotter\n   2. `process()`: performs the PII matching and redaction\n3. `CreditCardSpotter`: a spotter that identifies credit card numbers\n   1. `getUID()`: returns the unique ID of the spotter\n   2. `process()`: performs the PII matching and redaction\n\n> You can checkout detailed API Documentations [here](https://ubc-mds.github.io/sanityze/).\n\nBelow is a simple quick start example:\n\n```python\nimport pandas as pd\nfrom sanityze import Cleanser, EmailSpotter\n\n# Create a cleanser, and don\'t add the default spotters\ncleanser = Cleanser(include_default_spotters=False)\ncleaner.add_spotter(from sanityze import Cleanser, EmailSpotter())\ncleaned_df = cleanser.clean(df)\n```\n\n\n\n## High-level Design\nTo better understand the design of the package, we have provided a high-level design document, which will be kept up to date as the package evolves. The document can be found [here](HighLevelDesign.md).\n\n## Contributing\n\nInterested in contributing? Check out the [contributing guidelines](CONTRIBUTING.md). Please note that this project is released with a Code of Conduct. By contributing to this project, you agree to abide by its terms.\n\n## License\n\n`sanityze` was created by Caesar Wong, Jonah Hamilton and Tony Zoght. It is licensed under the terms of the [MIT license](LICENSE).\n\n## Credits\n\n`sanityze` was created with [`cookiecutter`](https://cookiecutter.readthedocs.io/en/latest/) and the `py-pkgs-cookiecutter` [template](https://github.com/py-pkgs/py-pkgs-cookiecutter).\n\n## Quick Links\n  * [Read the Docs](https://sanityze.readthedocs.io/en/latest/?badge=latest)\n  * [Documentation on GH](https://ubc-mds.github.io/sanityze/)\n  * [Kanban Board](https://github.com/orgs/UBC-MDS/projects/15)\n  * [Issues](https://github.com/UBC-MDS/sanityze/issues)\n  * [High Level Design](HighLevelDesign.md) \n  * [Contributing Guidelines](CONTRIBUTING.md)\n  * [Code of Conduct](CODE_OF_CONDUCT.md)\n  * [License](LICENSE)\n\n',
+    'author': 'Caesar Wong, Jonah Hamilton and Tony Zoght',
+    'author_email': 'None',
+    'maintainer': 'None',
+    'maintainer_email': 'None',
+    'url': 'None',
+    'package_dir': package_dir,
+    'packages': packages,
+    'package_data': package_data,
+    'install_requires': install_requires,
+    'python_requires': '>=3.9,<4.0',
+}
+
+
+setup(**setup_kwargs)
