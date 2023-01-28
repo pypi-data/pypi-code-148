@@ -1,0 +1,42 @@
+from setuptools import setup, find_packages
+
+setup(
+    name='damp11113',
+    version='2023.1.28.10.0.0',
+    license='MIT',
+    author='damp11113',
+    author_email='damp51252@gmail.com',
+    packages=find_packages('src'),
+    package_dir={'': 'src'},
+    url='https://github.com/damp11113/damp11113-library',
+    description='A Utils library and Easy to using.',
+    install_requires=[
+        "Pygments",
+        "natsort",
+        "psutil",
+        "libscrc",
+        "PyAudio",
+        "python-vlc",
+        "youtube_dl",
+        "pafy",
+        "pafy2 @ git+https://github.com/damp11113/pafy2.git",
+        "ffmpeg-python",
+        "opencv-python",
+        "tqdm",
+        "numpy",
+        "qrcode",
+        "python-barcode",
+        "Pillow",
+        "yt-dlp",
+        "pyzbar",
+        "mcstatus",
+        "requests",
+        "mcrcon",
+        "paho-mqtt",
+        "pymata-aio",
+        "key-generator",
+        "gTTS",
+        "playsound",
+        "PyQt5"
+    ]
+)
