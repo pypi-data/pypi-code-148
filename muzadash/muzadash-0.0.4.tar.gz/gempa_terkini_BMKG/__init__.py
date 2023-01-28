@@ -1,0 +1,1 @@
+from gempa_terkini_BMKG.gempaTerkini import ekstraski_data, tampilkan_data
