@@ -1,0 +1,44 @@
+from __future__ import annotations
+from sharingiscaring.GRPCClient.service_pb2_grpc import QueriesStub
+from sharingiscaring.GRPCClient.types_pb2 import *
+from enum import Enum
+from sharingiscaring.GRPCClient._SharedConverters import Mixin as _SharedConverters
+import os
+import sys
+from rich import print
+sys.path.append(os.path.dirname('sharingiscaring'))
+# from sharingiscaring.pool import ConcordiumPoolFromClient
+from sharingiscaring.GRPCClient.ConcordiumTypes import CCD_PoolInfo
+
+
+
+
+class Mixin(_SharedConverters):
+    def get_pool_info_for_pool(self, pool_id:int, block_hash: str) -> CCD_PoolInfo:
+        self.stub: QueriesStub
+        prefix=''
+        result = {}
+        blockHashInput      = self.generate_block_hash_input_from(block_hash)
+        baker_id            = BakerId(value=pool_id)
+        poolInfoRequest     = PoolInfoRequest(
+                                baker=baker_id, 
+                                block_hash=blockHashInput)
+        
+        grpc_return_value: PoolInfoResponse   = self.stub.GetPoolInfo(request=poolInfoRequest)
+        
+        for descriptor in grpc_return_value.DESCRIPTOR.fields:
+            key, value = self.get_key_value_from_descriptor(descriptor, grpc_return_value)
+            key_to_store = f"{prefix}{key}"
+            if type(value) in self.simple_types:
+                result[key_to_store] = self.convertSingleValue(value)
+            
+            elif type(value) == BakerPoolInfo:
+                result[key_to_store] = self.convertBakerPoolInfo(value)
+
+            elif type(value) == PoolCurrentPaydayInfo:
+                result[key_to_store] = self.convertPoolCurrentPaydayInfo(value)
+
+            elif type(value) == PoolPendingChange:
+                result[key_to_store] = self.convertPendingChange(value)
+        
+        return  CCD_PoolInfo(**result)
