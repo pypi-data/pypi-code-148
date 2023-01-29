@@ -1,0 +1,92 @@
+def default_network_info(): return {
+  "service_entangled_dht": {
+    "bucket_size": 4,
+    "default_age": 43200,
+    "known_nodes": [
+      {
+        "host": "p2p-id.ru",
+        "udp_port": 14441
+      },
+      {
+        "host": "p2p-alice.ai",
+        "udp_port": 14441
+      },
+      {
+        "host": "bitdust.ai",
+        "udp_port": 14441
+      },
+      {
+        "host": "bitrex.ai",
+        "udp_port": 14441
+      },
+      {
+        "host": "root-node.ai",
+        "udp_port": 14441
+      },
+      {
+        "host": "bahamas.ai",
+        "udp_port": 14441
+      },
+      {
+        "host": "peer2peer.ai",
+        "udp_port": 14441
+      },
+      {
+        "host": "webapp.ai",
+        "udp_port": 14441
+      },
+      {
+        "host": "seed.bitdust.io",
+        "udp_port": 14441
+      }
+    ],
+    "max_age": 86400,
+    "parallel_calls": 4,
+    "refresh_timeout": 600,
+    "rpc_timeout": 10
+  },
+  "service_gateway": {
+    "session_key_type": "AES"
+  },
+  "service_identity_propagate": {
+    "known_servers": [
+      {
+        "host": "p2p-id.ru",
+        "http_port": 80
+      },
+      {
+        "host": "p2p-alice.ai",
+        "http_port": 80
+      },
+      {
+        "host": "bitdust.ai",
+        "http_port": 80
+      },
+      {
+        "host": "bitrex.ai",
+        "http_port": 80
+      },
+      {
+        "host": "root-node.ai",
+        "http_port": 80
+      },
+      {
+        "host": "bahamas.ai",
+        "http_port": 80
+      },
+      {
+        "host": "peer2peer.ai",
+        "http_port": 80
+      },
+      {
+        "host": "webapp.ai",
+        "http_port": 80
+      },
+      {
+        "host": "seed.bitdust.io",
+        "http_port": 80
+      }
+    ],
+    "whitelisted_servers": []
+  }
+}
