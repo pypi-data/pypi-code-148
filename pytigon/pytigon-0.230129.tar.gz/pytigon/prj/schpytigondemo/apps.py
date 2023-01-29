@@ -1,0 +1,33 @@
+APPS = [
+    "schsimplecontrols_demo",
+    "schadvcontrols_demo",
+    "schcomponents_demo",
+    "tables_demo",
+    "tables_adv_demo",
+    "views_demo",
+    "forms_demo",
+    "templates_demo",
+    "tasks_demo",
+    "channels_demo",
+    "wiki_demo",
+    "elements_demo",
+    "reports_demo",
+    "commander_demo",
+    "simplescripts_demo",
+    "attachements_demo",
+    "log_demo",
+    "desktop_demo",
+    "_schwiki.schwiki",
+    "_schtools.schsimplescripts",
+    "_schtools.schlog",
+    "_schtools.schcommander",
+    "_schtools.schtools",
+    "_schdata.schreports",
+    "_schdata.schelements",
+    "schcomponents.standard_components",
+    "_schdata.schprofile",
+    "schsetup.schadmin",
+]
+APPS_EXT = []
+PUBLIC = True
+MAIN_PRJ = False
