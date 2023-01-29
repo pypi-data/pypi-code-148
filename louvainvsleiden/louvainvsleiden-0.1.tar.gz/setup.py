@@ -1,0 +1,30 @@
+from setuptools import setup
+
+setup(name='louvainvsleiden',
+  version='0.1',
+  description='For sampling the louvain method and leiden method on different networks',
+  url='https://github.com/cannon-complexity/louvainvsleiden',
+  author='cannon-complexity',
+  author_email='cannon.complexity@gmail.com',
+  license='MIT',
+  packages=['louvainvsleiden'],
+  install_requires=[
+  "leidenalg",
+  "copy",
+  "importlib",
+  "itertools",
+  "math",
+  "statistics",
+  "sigfig",
+  "time",
+  "igraph",
+  "leidenalg",
+  "networkx",
+  "numpy",
+  "pandas",
+  "sklearn",
+  "matplotlib",
+  "seaborn",
+  "mplcyberpunk"
+  ],
+  zip_safe=False)
