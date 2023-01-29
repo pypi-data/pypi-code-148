@@ -1,0 +1,26 @@
+import setuptools
+
+"""
+README
+
+`setup.py` is only needed for distributing the project as a python package
+using `setuptools`.
+
+When developing a python application, the project doesn't need to have `setup.py`
+and `setup.cfg`.
+
+Since `python-service` is a package used by other python app as a dependency,
+`setup.py` is needed in this project.
+
+See readme in `python_service/service.py` for how to deploy package.
+
+"""
+setuptools.setup(
+    name="jiesu-python-service",
+    version="1.13",
+    description="A Python Service",
+    author="Jie Su",
+    install_requires=["Flask", "py-eureka-client"],
+    packages=setuptools.find_packages(),
+    zip_safe=False,
+)
