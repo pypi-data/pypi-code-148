@@ -1,0 +1,3 @@
+from tests.protocols.angularautomations import TestAngularAutomation
+from tests.protocols.angularui import TestAngularUI
+from tests.protocols.djangoautomation import TestDjangoAutomation
