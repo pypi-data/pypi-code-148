@@ -1,0 +1,13 @@
+import huble
+#TODO: Edit imports
+model = huble.sklearn.random_forest(parameters={'criterion': 'gini', 'n_estimators': 100, 'max_depth': 'None', 'max_leaf_nodes': 'None', 'random_state': 'None'})
+data=huble.util.load_dataset('https://ipfs.filebase.io/ipfs/QmRspeqXi9J2PVTmXYwMaBif9dYWVkNhM8EFomUAfajnT1')
+data = huble.sklearn.drop_duplicates(data=data,parameters={})
+#TODO: Check drop duplicates
+data = huble.sklearn.remove_mismatch_data(data=data, parameters={'exceptions': []})
+data = huble.sklearn.remove_outliers(data=data,columns=['Ticket'])
+data = huble.sklearn.drop_rows_columns(data=data,parameters={'labels': ['PassengerId', 'Pclass', 'Name'], 'axis': 0, 'inplace': False, 'errors': 'raise'})
+data = huble.sklearn.clean_data(data=data)
+training_dataset, test_dataset = huble.sklearn.train_test_split(data=data,parameters={'test_size': '0.25'})
+Model = huble.sklearn.train_model(data=training_dataset, model=model, column='Survived')
+metrics = huble.util.evaluate_model(model=Model, test_dataset=test_dataset, target_column= 'Survived', task_type='classification' )
