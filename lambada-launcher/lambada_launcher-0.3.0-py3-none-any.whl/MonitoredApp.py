@@ -1,0 +1,176 @@
+# WTFPL
+
+import subprocess
+import shlex
+import shutil
+import os
+import re
+import signal
+import sys
+
+
+class MonitoredApp:
+    def __init__(self,name,options):
+        self.name = name
+        self.options = options
+        if self.getDefault("shell",False):
+            self.cmd_tokens = options["cmd"]
+        else:
+            self.cmd_tokens = shlex.split(options["cmd"])
+        self.persist = options["persist"] if "persist" in options else False
+        self.proc = None
+        self.returnValue = None
+
+    @staticmethod
+    def get(name, options):
+        if "acquire" in options and options["acquire"]:
+            aa = AcquiredApp(name,options)
+            if aa.pid != None:
+                return aa
+            #else
+            aa.terminateIfNonpersistent()
+        return OwnApp(name,options)
+
+    def terminateIfNonpersistent(self):
+        if not self.persist:
+            self.terminate()
+
+    def isAquired(self):
+        return False
+
+    def getDefault(self,name,default):
+        return self.options[name] if name in self.options else default
+
+
+class OwnApp(MonitoredApp):
+    def __init__(self,name,options):
+        MonitoredApp.__init__(self,name,options)
+
+    def launch(self):
+        if not self.proc or not self.running():
+            options = {}
+            if "cwd" in self.options:
+                options["cwd"] = self.options["cwd"]
+            if self.getDefault("shell", False):
+                options["shell"] = True
+                options["executable"] = "/bin/bash"
+            if self.getDefault("detach", False):
+                options["preexec_fn"]=os.setpgrp
+
+            self.proc = subprocess.Popen(self.cmd_tokens, **options)
+            return self
+
+    def terminate(self):
+        if self.proc:
+            self.proc.terminate()
+            try:
+                self.proc.wait(1)
+            except subprocess.TimeoutExpired as ex:
+                print("do not terminate, killing")
+                self.proc.kill()
+                self.proc.wait(1)
+            self.returnValue = self.proc.poll()
+            self.proc = None
+
+    def running(self):
+        if not self.proc:
+            return False
+        else:
+            return self.proc.poll() is None
+
+    def poll(self):
+        return self.proc.poll() if self.proc else self.returnValue
+
+
+class AcquiredApp(MonitoredApp):
+    def __init__(self,name,options):
+        MonitoredApp.__init__(self,name,options)
+        self.pid = self.getpid()
+        if shutil.which("strace") is None:
+            print("acquire flag require strace to be installed.")
+            sys.exit(-1)
+
+        strace_cmd = "strace -e none -e exit_group -p "+str(self.pid)
+        self.strace = subprocess.Popen(shlex.split(strace_cmd),stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf-8")
+        self.straceOut = None
+        self.straceEnded = False
+    def isAquired(self):
+        return True
+
+    def getpid(self):
+        basedOn = self.getDefault("basedOn", {"method":"grepCmd"})
+        if basedOn["method"] == "grepCmd":
+            return self.getPidBasedOnGrepCmd()
+        elif basedOn["method"] == "listenPort":
+            if type(basedOn["port"]) != int:
+                raise ValueError("Wrong port in {}".format(basedOn))
+            self.port = basedOn["port"]
+            return self.getPidBasedOnListenPort(basedOn["port"])
+
+    def getPidBasedOnGrepCmd(self):
+        grepCommand = """ps -eo pid,cmd |egrep "^ *[0-9]* """ \
+                + self.options["cmd"] + """$" --color|awk '{print $1;}'"""
+        output = subprocess.check_output(grepCommand, shell=True)
+        lines = output.decode("utf8").strip().split("\n")
+        if len(lines) >1:
+            print("warning: multiple pid found")
+            print(lines)
+        if len(lines) == 1 and len(lines[0]) >0:
+            return int(lines[0])
+        else:
+            return None
+    def getPidBasedOnListenPort(self,port):
+        listenCommand = """ss -lp 'sport = :""" + str(port) + """' |awk '{print $7;}'"""
+        output = subprocess.check_output(listenCommand, shell=True)
+        lines = output.decode("utf8").strip().split("\n")
+        if len(lines) != 2:
+            if lines[0] != "Peer":
+                print(("warning: command parsed error. Execute\n----\n{}\n----\n" +
+                  "and expect two lines output. Got:\n{}\n").format(listenCommand,output))
+            return None
+        match = re.search(r",pid=(\d+),",lines[1])
+        if match:
+            return int(match.group(1))
+        else:
+            return None
+
+    def launch(self):
+        if self.straceEnded:
+            oa = OwnApp(self.name,self.options)
+            oa.launch()
+            return oa
+        else:
+            return self
+
+    def running(self):
+        return self.strace.poll() is None
+
+    def poll(self):
+        if self.running():
+            return None
+        else:
+            if not self.straceEnded:
+                #first poll after strace ended
+                self.straceEnded = True
+                outs = self.strace.stdout.read()
+                # print("read outs:"+str(outs))
+                errs = self.strace.stderr.read()
+                # print("read errs:"+str(errs))
+                match = re.search(r"\+\+\+ exited with (\d+) \+\+\+",errs)
+                if match:
+                    self.straceOut = int(match.group(1))
+                else:
+                    self.straceOut = -1
+            return self.straceOut
+
+
+    def terminate(self):
+        if not(self.straceEnded):
+            os.kill(self.pid, signal.SIGTERM)
+            self.strace.wait(.5)
+            self.poll()
+
+    def terminateIfNonpersistent(self):
+        super().terminateIfNonpersistent()
+        if self.strace.poll() is None:
+            self.strace.terminate()
