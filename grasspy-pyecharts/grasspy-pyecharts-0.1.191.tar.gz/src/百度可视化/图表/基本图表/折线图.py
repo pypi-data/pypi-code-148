@@ -1,0 +1,61 @@
+from pyecharts.charts.basic_charts.line import Line
+从 ... 导入 选项
+从 汉化通用 导入 _反向注入
+
+类 〇折线图(Line):
+    套路 添加y轴(
+        分身,
+        系列名称,
+        y轴,
+        *,
+        选中=真,
+        连接空数据=假,
+        x轴索引=空,
+        y轴索引=空,
+        颜色=空,
+        显示记号=真,
+        记号=空,
+        记号大小=4,
+        堆叠=空,
+        平滑=假,
+        裁剪=真,
+        阶梯=假,
+        悬停动画=真,
+        z层级=0,
+        z=0,
+        标记点选项々=空,
+        标记线选项々=空,
+        提示框选项々=空,
+        图元样式选项々=空,
+        标签选项々=选项.〇标签选项々(),
+        线条样式选项々=选项.〇线条样式选项々(),
+        区域填充样式选项々=选项.〇区域填充样式选项々(),
+    ):
+        返回 分身.add_yaxis(
+            series_name=系列名称,
+            y_axis=y轴,
+            is_selected=选中,
+            is_connect_nones=连接空数据,
+            xaxis_index=x轴索引,
+            yaxis_index=y轴索引,
+            color=颜色,
+            is_symbol_show=显示记号,
+            symbol=记号,
+            symbol_size=记号大小,
+            stack=堆叠,
+            is_smooth=平滑,
+            is_clip=裁剪,
+            is_step=阶梯,
+            is_hover_animation=悬停动画,
+            z_level=z层级,
+            z=z,
+            markpoint_opts=标记点选项々,
+            markline_opts=标记线选项々,
+            tooltip_opts=提示框选项々,
+            itemstyle_opts=图元样式选项々,
+            label_opts=标签选项々,
+            linestyle_opts=线条样式选项々,
+            areastyle_opts=区域填充样式选项々,
+        )
+
+_反向注入(〇折线图, Line)
