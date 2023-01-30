@@ -1,0 +1,10 @@
+gpu = False
+model_type = "t5"
+# model_name = "t5-base"
+model_name = "google/flan-t5-small"
+model_path = f"outputs/t5-small/trained-epoch-4-train-loss-0.0026-val-loss-0.0043"
+training_csv_path = f"datasets/generated_training.csv"
+path_list_data = f"datasets/list_data.csv"
+report = "report/%s_test_report.csv" % model_name
+un_seen_data = r"datasets/unseen_data.csv"
+test_dataset = r"test_dataset/V3-TestCases.csv"
